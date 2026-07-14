@@ -10,11 +10,26 @@ from sqlalchemy import text
 try:
     from chatbot.retriever import Retriever
     from chatbot.keyword_parser import parse_question
+    from chatbot.prompt import build_prompt as team_build_prompt
+    from chatbot.llm import ask_llm
 except Exception:
     Retriever = None
     def parse_question(q: str) -> dict:
         # very small placeholder parser: just return keywords
         return {"q": q}
+    # local fallback prompt/ask (kept minimal)
+    def team_build_prompt(question, rows):
+        if not rows:
+            return ""
+        parts = ["다음 지역 정보를 참고하여 답변하세요.\n"]
+        for i, r in enumerate(rows, 1):
+            parts.append(f"{i}.\n장소명: {r.get('title','')}\n주소: {r.get('addr1','')}\n전화번호: {r.get('tel','')}\n")
+        parts.append("\n사용자 질문:\n" + question)
+        parts.append("\n주의: 검색 결과에 없는 내용은 추측하지 말고 '찾을 수 없습니다.'라고 답변하세요.")
+        return "\n".join(parts)
+    def ask_llm(prompt: str) -> str:
+        # simple fallback reply (no LLM)
+        return "임시 응답: LLM이 구성되지 않았습니다."
 
 router = APIRouter()
 
@@ -107,29 +122,16 @@ def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
             session_id=session_id,
         )
 
-    # format context and prompt
-    prompt = build_prompt(rows, question)
+    # format context and prompt (use team prompt)
+    prompt = team_build_prompt(question, rows)
 
-    # call OpenAI (uses openai package)
-    openai_key = settings.openai_api_key
-    if not openai_key:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not configured")
-
+    # call LLM via team's llm util
     try:
-        import openai
-        openai.api_key = openai_key
-        completion = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "당신은 도움이 되는 안내자입니다."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=500,
-            temperature=0.2,
-        )
-        reply_text = completion.choices[0].message.content.strip()
+        reply_text = ask_llm(prompt)
+        if not isinstance(reply_text, str):
+            reply_text = str(reply_text)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"OpenAI call failed: {e}")
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
 
     # build sources summary
     sources = []
