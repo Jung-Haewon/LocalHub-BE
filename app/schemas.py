@@ -31,7 +31,7 @@ class PostListItem(BaseModel):
     created_at: datetime
     view_count: int
 
-    model_config = {"orm_mode": True}
+    model_config = {"from_attributes": True}
 
 
 class PostDetail(BaseModel):
@@ -44,7 +44,7 @@ class PostDetail(BaseModel):
     updated_at: Optional[datetime] = None
     view_count: int
 
-    model_config = {"orm_mode": True}
+    model_config = {"from_attributes": True}
 
 
 class PostListResponse(BaseModel):
@@ -52,3 +52,5 @@ class PostListResponse(BaseModel):
     page: int
     size: int
     items: List[PostListItem]
+
+    model_config = {"from_attributes": True}
