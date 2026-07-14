@@ -234,20 +234,36 @@ def parse_question(question):
 
     keywords = []
 
+    # District
     for gu, aliases in DISTRICT_ALIASES.items():
         if any(alias in question for alias in aliases):
             district = gu
             break
 
+    # Content type
     for key, value in CONTENT_TYPES.items():
         if key in question:
             contenttype = value
+            break
 
     words = question.split()
 
     for w in words:
 
-        if w not in [alias for aliases in DISTRICT_ALIASES.values() for alias in aliases] and w not in CONTENT_TYPES:
+        # alias가 단어 안에 포함되면 keyword에서 제외
+        is_district = any(
+            alias in w
+            for aliases in DISTRICT_ALIASES.values()
+            for alias in aliases
+        )
+
+        # content type도 단어 안에 포함되면 제외
+        is_contenttype = any(
+            key in w
+            for key in CONTENT_TYPES
+        )
+
+        if not is_district and not is_contenttype:
             keywords.append(w)
 
     return {
