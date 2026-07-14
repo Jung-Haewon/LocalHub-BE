@@ -32,7 +32,7 @@ class Retriever:
             params.append(f"%{parsed['district']}%")
 
         if parsed["contenttype"]:
-            sql += " AND contenttypeid = ?"
+            sql += " AND content_type_id = ?"
             params.append(parsed["contenttype"])
 
         if parsed["keywords"]:
