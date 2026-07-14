@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import glob
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from app.database import engine, SessionLocal, Base
 from app import models
@@ -23,13 +24,14 @@ def infer_category_from_filename(path: str) -> str:
         return "culture"
     return os.path.splitext(name)[0]
 
-def normalize_item(item: Dict[str, Any], category: str) -> Dict[str, Any]:
-    def to_float(v):
-        try:
-            return float(v)
-        except Exception:
-            return None
+def to_float(v):
+    try:
+        return float(v)
+    except Exception:
+        return None
 
+def normalize_item(item: Dict[str, Any], category: str, outer: Optional[Dict[str,Any]] = None) -> Dict[str, Any]:
+    # outer may contain file-level metadata like region or contentType
     return {
         "content_id": item.get("contentid") or item.get("id") or None,
         "category": category,
@@ -40,46 +42,59 @@ def normalize_item(item: Dict[str, Any], category: str) -> Dict[str, Any]:
         "tel": item.get("tel"),
         "first_image": item.get("firstimage"),
         "first_image2": item.get("firstimage2"),
-        "mapx": to_float(item.get("mapx")),
-        "mapy": to_float(item.get("mapy")),
-        "content_type": item.get("contenttypeid") or item.get("contentType"),
+        "mapx": to_float(item.get("mapx") or (outer or {}).get("mapx")),
+        "mapy": to_float(item.get("mapy") or (outer or {}).get("mapy")),
+        "content_type": item.get("contenttypeid") or item.get("contentType") or (outer or {}).get("contentType"),
         "content_type_id": item.get("contenttypeid"),
         "created_time_raw": item.get("createdtime"),
         "modified_time_raw": item.get("modifiedtime"),
         "extra_raw": json.dumps(item, ensure_ascii=False),
+        # keep a few common raw fields from the file-level if present
+        "region": (outer or {}).get("region"),
     }
 
 def load_json_items(path: str) -> List[Dict]:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    # common structure: { "items": [ ... ] }
+    # try multiple common shapes
+    # case A: { "items": [ ... ] }
     if isinstance(data, dict):
         if "items" in data and isinstance(data["items"], list):
-            return data["items"]
-        # some files may have nested structure like { "response": { "body": { "items": {...} } } }
-        # try to traverse common wrappers
-        def find_items(d):
+            return data["items"], data
+        # nested wrappers: response -> body -> items
+        def find_items_with_outer(d):
             if isinstance(d, dict):
                 for k, v in d.items():
                     if k == "items" and isinstance(v, list):
-                        return v
+                        return v, d
                     if isinstance(v, dict):
-                        found = find_items(v)
+                        found = find_items_with_outer(v)
                         if found:
                             return found
             return None
-        found = find_items(data)
+        found = find_items_with_outer(data)
         if found is not None:
             return found
-        # fallback: if top-level keys are numeric indices as dict
-        return [data]
+        # maybe top-level is the list itself or has 'list'
+        if "list" in data and isinstance(data["list"], list):
+            return data["list"], data
+        # otherwise treat top-level dict as a single item list
+        return [data], data
     if isinstance(data, list):
-        return data
-    return []
+        return data, None
+    return [], None
+
+def gather_files_from_dir(data_dir: str) -> List[str]:
+    patterns = ["*.json"]
+    files = []
+    for p in patterns:
+        files.extend(glob.glob(os.path.join(data_dir, p)))
+    files.sort()
+    return files
 
 def main():
     parser = argparse.ArgumentParser(description="Seed locations JSON into SQLite")
-    parser.add_argument("files", nargs="+", help="JSON files to load")
+    parser.add_argument("files", nargs="*", help="JSON files to load (if empty, load all from ./data)")
     parser.add_argument("--category", help="Force category for all items (optional)")
     parser.add_argument("--create-tables", action="store_true", help="Create DB tables before inserting")
     args = parser.parse_args()
@@ -87,15 +102,27 @@ def main():
     if args.create_tables:
         Base.metadata.create_all(bind=engine)
 
+    # determine files
+    if args.files:
+        files = args.files
+    else:
+        data_dir = os.path.join(os.path.dirname(__file__), "data")
+        files = gather_files_from_dir(data_dir)
+
     session = SessionLocal()
     inserted = 0
     skipped = 0
     try:
-        for fp in args.files:
+        for fp in files:
             inferred = args.category or infer_category_from_filename(fp)
-            items = load_json_items(fp)
+            items_result = load_json_items(fp)
+            # load_json_items may return (items, outer) or items only
+            if isinstance(items_result, tuple):
+                items, outer = items_result
+            else:
+                items, outer = items_result, None
             for raw in items:
-                norm = normalize_item(raw, inferred)
+                norm = normalize_item(raw, inferred, outer)
                 cid = norm["content_id"]
                 if cid:
                     exists = session.query(models.Location).filter(models.Location.content_id == cid).first()
@@ -103,29 +130,29 @@ def main():
                         skipped += 1
                         continue
                 loc = models.Location(
-                    content_id=norm["content_id"],
-                    category=norm["category"],
-                    title=norm["title"],
-                    addr1=norm["addr1"],
-                    addr2=norm["addr2"],
-                    zipcode=norm["zipcode"],
-                    tel=norm["tel"],
-                    first_image=norm["first_image"],
-                    first_image2=norm["first_image2"],
-                    mapx=norm["mapx"],
-                    mapy=norm["mapy"],
-                    content_type=norm["content_type"],
-                    content_type_id=norm["content_type_id"],
-                    created_time_raw=norm["created_time_raw"],
-                    modified_time_raw=norm["modified_time_raw"],
-                    extra_raw=norm["extra_raw"],
+                    content_id=norm.get("content_id"),
+                    category=norm.get("category"),
+                    title=norm.get("title"),
+                    addr1=norm.get("addr1"),
+                    addr2=norm.get("addr2"),
+                    zipcode=norm.get("zipcode"),
+                    tel=norm.get("tel"),
+                    first_image=norm.get("first_image"),
+                    first_image2=norm.get("first_image2"),
+                    mapx=norm.get("mapx"),
+                    mapy=norm.get("mapy"),
+                    content_type=norm.get("content_type"),
+                    content_type_id=norm.get("content_type_id"),
+                    created_time_raw=norm.get("created_time_raw"),
+                    modified_time_raw=norm.get("modified_time_raw"),
+                    extra_raw=norm.get("extra_raw"),
                 )
                 session.add(loc)
                 inserted += 1
             # flush per file to keep memory bounded
             session.commit()
         print(f"Inserted: {inserted}, Skipped(existing): {skipped}")
-    except Exception as e:
+    except Exception:
         session.rollback()
         raise
     finally:
