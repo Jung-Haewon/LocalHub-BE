@@ -20,7 +20,7 @@ def build_prompt(question, rows):
 이름 : {row["title"]}
 주소 : {row["addr1"]}
 전화 : {row["tel"] or "정보 없음"}
-종류 : {CONTENT_TYPE_NAMES.get(row["contenttypeid"], "기타")}
+종류 : {CONTENT_TYPE_NAMES.get(row["content_type_id"], "기타")}
 
 """
 

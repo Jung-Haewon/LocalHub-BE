@@ -19,8 +19,8 @@ class Retriever:
             title,
             addr1,
             tel,
-            contenttypeid,
-            firstimage
+            content_type_id,
+            first_image
         FROM locations
         WHERE 1=1
         """
@@ -67,8 +67,8 @@ class Retriever:
                 title,
                 addr1,
                 tel,
-                contenttypeid,
-                firstimage
+                content_type_id,
+                first_image
             FROM locations
             WHERE 1=1
             """
@@ -80,7 +80,7 @@ class Retriever:
                 params.append(f"%{parsed['district']}%")
 
             if parsed["contenttype"]:
-                sql += " AND contenttypeid = ?"
+                sql += " AND content_type_id = ?"
                 params.append(parsed["contenttype"])
 
             sql += " LIMIT 10"
