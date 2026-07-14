@@ -1,5 +1,7 @@
-from pydantic import BaseSettings
-from fastapi import APIRouter
+try:
+    from pydantic_settings import BaseSettings
+except Exception:
+    from pydantic import BaseSettings
 
 class Settings(BaseSettings):
     app_name: str = "LocalHub BE"
@@ -11,9 +13,3 @@ class Settings(BaseSettings):
 
 def get_settings() -> Settings:
     return Settings()
-
-router = APIRouter()
-
-@router.get("/health")
-def health():
-    return {"status": "ok"}
