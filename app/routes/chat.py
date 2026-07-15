@@ -116,16 +116,15 @@ def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not configured")
 
     try:
-        import openai
-        openai.api_key = openai_key
-        completion = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+        from openai import OpenAI
+        client = OpenAI(api_key=openai_key) # API 키 설정
+        
+        completion = client.chat.completions.create( # 최신 문법
+            model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": "당신은 도움이 되는 안내자입니다."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=500,
-            temperature=0.2,
         )
         reply_text = completion.choices[0].message.content.strip()
     except Exception as e:
