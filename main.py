@@ -52,6 +52,16 @@ try:
     app.include_router(chat_router, prefix="/api")
 except ImportError:
     pass
+try:
+    from app.routes.categories import router as categories_router
+    app.include_router(categories_router, prefix="/api")
+except ImportError:
+    pass
+try:
+    from app.routes.locations import router as locations_router
+    app.include_router(locations_router, prefix="/api")
+except ImportError:
+    pass
 
 @app.get("/")
 def root():
