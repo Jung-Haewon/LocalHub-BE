@@ -95,20 +95,20 @@ def gather_files_from_dir(data_dir: str) -> List[str]:
     files.sort()
     return files
 
-def main():
+def main(args=None):
     init_db()
     parser = argparse.ArgumentParser(description="Seed locations JSON into SQLite")
     parser.add_argument("files", nargs="*", help="JSON files to load (if empty, load all from ./data)")
     parser.add_argument("--category", help="Force category for all items (optional)")
     parser.add_argument("--create-tables", action="store_true", help="Create DB tables before inserting")
-    args = parser.parse_args()
+    parsed_args = parser.parse_args(args=args if args is not None else [])
 
-    if args.create_tables:
+    if parsed_args.create_tables:
         Base.metadata.create_all(bind=engine)
 
     # determine files
-    if args.files:
-        files = args.files
+    if parsed_args.files:
+        files = parsed_args.files
     else:
         data_dir = os.path.join(os.path.dirname(__file__), "data")
         files = gather_files_from_dir(data_dir)
@@ -118,7 +118,7 @@ def main():
     skipped = 0
     try:
         for fp in files:
-            inferred = args.category or infer_category_from_filename(fp)
+            inferred = parsed_args.category or infer_category_from_filename(fp)
             items_result = load_json_items(fp)
             # load_json_items may return (items, outer) or items only
             if isinstance(items_result, tuple):
