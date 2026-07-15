@@ -18,6 +18,7 @@ settings = get_settings()
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     session_id: Optional[str] = None
+    history: List[Any] = []
 
 class SourceItem(BaseModel):
     type: str
@@ -32,8 +33,19 @@ class ChatResponse(BaseModel):
 
 @router.post("/chat", response_model=ChatResponse)
 def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
+    history = payload.history
     question = payload.message
     session_id = payload.session_id
+
+    llm_messages = [
+        {"role": "system", "content": "당신은 서울만 담당하는 LocalHub의 관광 안내 챗봇입니다. 아래 정보를 참고해 질문에 답하세요. 아래 정보 외의 장소 등은 언급하지 마세요. 당신은 관광정보를 제공하는 챗봇이지, 일반적인 대화용 챗봇이 아닙니다."
+                "관광지, 레포츠, 문화시설, 쇼핑, 숙박, 여행코스, 축제공연행사의 정보만 가지고 있습니다."}
+    ]
+
+    for h in history[:-1]:  # 마지막(현재) 질문은 별도 처리
+        role = "assistant" if h.get('from') == 'bot' else "user"
+        llm_messages.append({"role": role, "content": h.get('text', '')})
+    
 
     # parse
     parsed = parse_question(question) if callable(parse_question) else {"q": question}
@@ -218,14 +230,15 @@ def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
     try:
         from openai import OpenAI
         client = OpenAI(api_key=openai_key) # API 키 설정
+
+        final_messages = llm_messages + [
+            {"role": "user", "content": prompt} 
+        ]
+        print(f"Final messages sent to LLM: {final_messages}")
         
         completion = client.chat.completions.create( # 최신 문법
             model="gpt-5-mini",
-            messages=[
-                {"role": "system", "content": "당신은 서울만 담당하는 LocalHub의 관광 안내 챗봇입니다. 아래 정보를 참고해 질문에 답하세요. 아래 정보 외의 장소 등은 언급하지 마세요. 당신은 관광정보를 제공하는 챗봇이지, 일반적인 대화용 챗봇이 아닙니다."
-                "관광지, 레포츠, 문화시설, 쇼핑, 숙박, 여행코스, 축제공연행사의 정보만 가지고 있습니다."},
-                {"role": "user", "content": prompt}
-            ],
+            messages=final_messages
         )
         reply_text = completion.choices[0].message.content.strip()
     except Exception as e:
