@@ -10,9 +10,14 @@ class Retriever:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
-        # -------------------------------
-        # 1차 검색 : 지역 + 카테고리 + 키워드
-        # -------------------------------
+        # 검색 조건이 하나도 없으면 검색 안 함
+        if (
+            not parsed["district"]
+            and not parsed["contenttype"]
+            and not parsed["keywords"]
+        ):
+            conn.close()
+            return []
 
         sql = """
         SELECT
@@ -27,14 +32,31 @@ class Retriever:
 
         params = []
 
+        # -----------------------------
+        # 지역 (리스트)
+        # -----------------------------
         if parsed["district"]:
-            sql += " AND addr1 LIKE ?"
-            params.append(f"%{parsed['district']}%")
+            sql += " AND ("
 
+            conditions = []
+
+            for district in parsed["district"]:
+                conditions.append("addr1 LIKE ?")
+                params.append(f"%{district}%")
+
+            sql += " OR ".join(conditions)
+            sql += ")"
+
+        # -----------------------------
+        # 카테고리
+        # -----------------------------
         if parsed["contenttype"]:
             sql += " AND content_type_id = ?"
             params.append(parsed["contenttype"])
 
+        # -----------------------------
+        # 키워드
+        # -----------------------------
         if parsed["keywords"]:
             sql += " AND ("
 
@@ -55,12 +77,27 @@ class Retriever:
         cur.execute(sql, params)
         rows = [dict(row) for row in cur.fetchall()]
 
-        # -------------------------------
-        # 2차 검색 : 결과 없으면
-        # 지역 + 카테고리만 검색
-        # -------------------------------
+        # -------------------------------------------------
+        # 키워드만 검색했는데 결과가 없으면 종료
+        # -------------------------------------------------
 
-        if not rows:
+        if (
+            not rows
+            and parsed["keywords"]
+            and not parsed["district"]
+            and not parsed["contenttype"]
+        ):
+            conn.close()
+            return []
+
+        # -------------------------------------------------
+        # 지역 또는 카테고리가 있을 때 fallback
+        # -------------------------------------------------
+
+        if (
+            not rows
+            and (parsed["district"] or parsed["contenttype"])
+        ):
 
             sql = """
             SELECT
@@ -75,10 +112,20 @@ class Retriever:
 
             params = []
 
+            # 지역 (리스트)
             if parsed["district"]:
-                sql += " AND addr1 LIKE ?"
-                params.append(f"%{parsed['district']}%")
+                sql += " AND ("
 
+                conditions = []
+
+                for district in parsed["district"]:
+                    conditions.append("addr1 LIKE ?")
+                    params.append(f"%{district}%")
+
+                sql += " OR ".join(conditions)
+                sql += ")"
+
+            # 카테고리
             if parsed["contenttype"]:
                 sql += " AND content_type_id = ?"
                 params.append(parsed["contenttype"])
