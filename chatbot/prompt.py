@@ -27,7 +27,7 @@ def build_prompt(question, rows):
     prompt = f"""
 당신은 LocalHub의 관광 안내 챗봇입니다.
 
-아래 정보만 이용해서 질문에 답하세요.
+아래 정보를 참고해 질문에 답하세요.
 
 {context}
 
@@ -35,11 +35,6 @@ def build_prompt(question, rows):
 
 {question}
 
-규칙
-
-- 없는 내용은 추측하지 않는다.
-- 검색 결과가 없으면 찾을 수 없다고 말한다.
-- 답변은 친절하게 한다.
 """
 
     return prompt
