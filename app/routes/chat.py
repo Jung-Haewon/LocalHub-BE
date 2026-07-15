@@ -6,30 +6,7 @@ from app.database import get_db
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-# try to import team's parser/retriever; if not available use a fallback
-try:
-    from chatbot.retriever import Retriever
-    from chatbot.keyword_parser import parse_question
-    from chatbot.prompt import build_prompt as team_build_prompt
-    from chatbot.llm import ask_llm
-except Exception:
-    Retriever = None
-    def parse_question(q: str) -> dict:
-        # very small placeholder parser: just return keywords
-        return {"q": q}
-    # local fallback prompt/ask (kept minimal)
-    def team_build_prompt(question, rows):
-        if not rows:
-            return ""
-        parts = ["다음 지역 정보를 참고하여 답변하세요.\n"]
-        for i, r in enumerate(rows, 1):
-            parts.append(f"{i}.\n장소명: {r.get('title','')}\n주소: {r.get('addr1','')}\n전화번호: {r.get('tel','')}\n")
-        parts.append("\n사용자 질문:\n" + question)
-        parts.append("\n주의: 검색 결과에 없는 내용은 추측하지 말고 '찾을 수 없습니다.'라고 답변하세요.")
-        return "\n".join(parts)
-    def ask_llm(prompt: str) -> str:
-        # simple fallback reply (no LLM)
-        return "임시 응답: LLM이 구성되지 않았습니다."
+from chatbot.chatbot import Chatbot
 
 router = APIRouter()
 
