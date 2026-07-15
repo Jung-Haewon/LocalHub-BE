@@ -5,6 +5,7 @@ from app.config import get_settings
 from app.database import get_db
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from chatbot.prompt import build_prompt 
 
 from chatbot.chatbot import Chatbot
 
@@ -23,27 +24,9 @@ class SourceItem(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
-    intent: str
     sources: List[SourceItem]
     session_id: Optional[str] = None
 
-def build_prompt(rows: List[dict], question: str) -> str:
-    if not rows:
-        return ""
-    parts = ["다음 지역 정보를 참고하여 답변하세요.\n"]
-    for i, r in enumerate(rows, 1):
-        parts.append(f"{i}.\n장소명: {r.get('title','')}\n주소: {r.get('addr1','')}\n전화번호: {r.get('tel','')}\n")
-    parts.append("\n사용자 질문:\n" + question)
-    parts.append("\n주의: 검색 결과에 없는 내용은 추측하지 말고 '찾을 수 없습니다.'라고 답변하세요.")
-    return "\n".join(parts)
-
-def classify_intent(message: str) -> str:
-    m = message.lower()
-    if any(k in m for k in ["축제", "페스티벌"]): return "festival"
-    if any(k in m for k in ["맛집", "식당", "음식"]): return "restaurant"
-    if any(k in m for k in ["관광", "관광지", "볼거리"]): return "tourist_spot"
-    if any(k in m for k in ["글", "게시판", "커뮤니티", "질문"]): return "community_search"
-    return "other"
 
 def fallback_retrieve(db: Session, parsed: dict, limit: int = 5) -> List[dict]:
     q = parsed.get("q") or parsed.get("keyword") or ""
@@ -71,7 +54,6 @@ def fallback_retrieve(db: Session, parsed: dict, limit: int = 5) -> List[dict]:
 def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
     question = payload.message
     session_id = payload.session_id
-    intent = classify_intent(question)
 
     # parse
     parsed = parse_question(question) if callable(parse_question) else {"q": question}
@@ -94,19 +76,46 @@ def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
     if not rows:
         return ChatResponse(
             reply="조건에 맞는 정보를 찾을 수 없습니다.",
-            intent=intent,
             sources=[],
             session_id=session_id,
         )
 
-    # format context and prompt (use team prompt)
-    prompt = team_build_prompt(question, rows)
+    db_path = settings.database_url.replace("sqlite:///","")
+    retr = Retriever(db_path)
+    rows = retr.retrieve(parsed)
+    
+    # format context and prompt
+    print(rows)
+    prompt = build_prompt(question, rows)
+
+    # call OpenAI (uses openai package)
+    openai_key = settings.openai_api_key
+    if not openai_key:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not configured")
 
     # call LLM via team's llm util
     try:
-        reply_text = ask_llm(prompt)
-        if not isinstance(reply_text, str):
-            reply_text = str(reply_text)
+        from openai import OpenAI
+        client = OpenAI(api_key=openai_key) # API 키 설정
+
+        messages=[
+                {"role": "system", "content": "당신은 LocalHub의 관광 안내 챗봇입니다. 아래 정보를 참고해 질문에 답하세요."},
+                {"role": "user", "content": prompt}
+            ]
+
+        print("--- [DEBUG] LLM에게 전달되는 실제 프롬프트 시작 ---")
+        for msg in messages:
+            print(f"Role: {msg['role']}\nContent: {msg['content']}\n{'-'*20}")
+        print("--- [DEBUG] LLM에게 전달되는 실제 프롬프트 끝 ---")
+        
+        completion = client.chat.completions.create( # 최신 문법
+            model="gpt-5-mini",
+            messages=[
+                {"role": "system", "content": "당신은 LocalHub의 관광 안내 챗봇입니다. 아래 정보를 참고해 질문에 답하세요."},
+                {"role": "user", "content": prompt}
+            ],
+        )
+        reply_text = completion.choices[0].message.content.strip()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
 
@@ -119,4 +128,4 @@ def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
             name=r.get("title")
         ))
 
-    return ChatResponse(reply=reply_text, intent=intent, sources=sources, session_id=session_id)
+    return ChatResponse(reply=reply_text, sources=sources, session_id=session_id)

@@ -7,6 +7,9 @@ from typing import Any, Dict, List, Optional
 
 from app.database import engine, SessionLocal, Base
 from app import models
+from database import init_db
+
+Base.metadata.create_all(bind=engine)
 
 def infer_category_from_filename(path: str) -> str:
     name = os.path.basename(path)
@@ -93,6 +96,7 @@ def gather_files_from_dir(data_dir: str) -> List[str]:
     return files
 
 def main():
+    init_db()
     parser = argparse.ArgumentParser(description="Seed locations JSON into SQLite")
     parser.add_argument("files", nargs="*", help="JSON files to load (if empty, load all from ./data)")
     parser.add_argument("--category", help="Force category for all items (optional)")

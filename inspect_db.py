@@ -8,6 +8,11 @@ retriever = retriever.Retriever("localhub.db")
 
 bot = Chatbot("localhub.db")
 
+conn = sqlite3.connect("localhub.db")
+cur = conn.cursor()
+
+cur.execute("PRAGMA table_info(locations)")
+
 while True:
 
     q = input("> ")
