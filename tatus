@@ -1,0 +1,41 @@
+[33mf815a37[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mJH[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m Resolve seed.py argument conflict during server startup
+[33m731deee[m Add missing imports
+[33m3b1234f[m[33m ([m[1;31morigin/FastAPI[m[33m)[m merge : From utility
+[33mb06bb41[m tmp
+[33md9fb6ba[m[33m ([m[1;31morigin/utility[m[33m)[m Integrate chatbot and remove duplicate functions
+[33mc59e3da[m Add database setup and chatbot
+[33m7327137[m Adapt to current openai api standard
+[33mc84944e[m Improve prompt
+[33m3952ba1[m Remove unnecessary prints
+[33m57c9838[m Fully adapt chatbot to SQLAlchemy schema
+[33mcdc0a21[m Adapt chatbot to SQLAlchemy schema
+[33m68d1414[m tmp'
+[33m7930b53[m Merge branch 'chatbot'
+[33m4faacac[m[33m ([m[1;31morigin/chatbot[m[33m)[m Clean up code
+[33ma5b84ca[m Test chatbot functionality
+[33mbeacdce[m Implement chatbot pipeline
+[33ma271951[m Add OpenAI LLM integration
+[33m0069671[m Make parser gracefully handle josa
+[33m4602da7[m Merge FastAPI into main
+[33m417dc50[m add : make endpoint /api/chat for chatbot
+[33md0978f6[m Generate prompt based on retrieved data
+[33md6f6ae5[m Merge branch 'main' of https://github.com/Jung-Haewon/LocalHub-BE
+[33md951faf[m[33m ([m[1;31morigin/retrieval[m[33m)[m Test query based retrieval functionality
+[33m6f02e06[m Implement query based retriever
+[33m1e5707a[m Expand keyword mapping
+[33me8de46b[m Merge pull request #1 from Jung-Haewon/FastAPI
+[33md3ce7a8[m modify : Resolve backend error
+[33m9139840[m Parse query into keywords
+[33m63529b0[m Merge FastAPI branch into main
+[33mb5e25b5[m Resolve merge conflict in seed.py
+[33m87b2637[m[33m ([m[1;31morigin/SQLAlchemy[m[33m)[m Test database integrity
+[33md3f761b[m Add JSON seed script for SQLite
+[33mdcaba31[m Define database models
+[33m1f7f5ee[m Configure SQLAlchemy database connection
+[33md1b681e[m add : FastAPI 초기 CRUD 설정 및 DB 연결 준비
+[33m603c9d7[m Add database to gitignore
+[33me8dd838[m add : FastAPI initial settings + env settings
+[33m3d21bd7[m modify : gitignore settings
+[33mfa1dd91[m Add requirements.txt
+[33md104c40[m init
+[33m898e0a4[m Initial commit

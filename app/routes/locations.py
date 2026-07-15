@@ -73,6 +73,48 @@ def list_locations(
     return {"total": total, "page": page, "size": size, "items": [_serialize(i) for i in items]}
 
 
+@router.get("/locations/geojson")
+def locations_geojson(
+    category: Optional[str] = Query(None),
+    q: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Return locations as a GeoJSON FeatureCollection for easy Leaflet consumption."""
+    query = db.query(models.Location)
+    if category:
+        query = query.filter(models.Location.category == category)
+    if q:
+        query = query.filter(models.Location.title.ilike(f"%{q}%"))
+
+    items = query.all()
+
+    features = []
+    for loc in items:
+        try:
+            lon = float(loc.mapx) if loc.mapx is not None else None
+            lat = float(loc.mapy) if loc.mapy is not None else None
+        except Exception:
+            lon = None
+            lat = None
+        props = {
+            "id": loc.id,
+            "content_id": loc.content_id,
+            "title": loc.title,
+            "addr1": loc.addr1,
+            "category": loc.category,
+        }
+        feature = {
+            "type": "Feature",
+            "properties": props,
+            "geometry": None,
+        }
+        if lon is not None and lat is not None:
+            feature["geometry"] = {"type": "Point", "coordinates": [lon, lat]}
+        features.append(feature)
+
+    return {"type": "FeatureCollection", "features": features}
+
+
 @router.get("/locations/{loc_id}")
 def get_location(loc_id: int, db: Session = Depends(get_db)):
     loc = db.query(models.Location).filter(models.Location.id == loc_id).first()
@@ -96,3 +138,45 @@ def get_location(loc_id: int, db: Session = Depends(get_db)):
         "modified_time_raw": loc.modified_time_raw,
         "extra_raw": loc.extra_raw,
     }
+
+
+@router.get("/locations/geojson")
+def locations_geojson(
+    category: Optional[str] = Query(None),
+    q: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Return locations as a GeoJSON FeatureCollection for easy Leaflet consumption."""
+    query = db.query(models.Location)
+    if category:
+        query = query.filter(models.Location.category == category)
+    if q:
+        query = query.filter(models.Location.title.ilike(f"%{q}%"))
+
+    items = query.all()
+
+    features = []
+    for loc in items:
+        try:
+            lon = float(loc.mapx) if loc.mapx is not None else None
+            lat = float(loc.mapy) if loc.mapy is not None else None
+        except Exception:
+            lon = None
+            lat = None
+        props = {
+            "id": loc.id,
+            "content_id": loc.content_id,
+            "title": loc.title,
+            "addr1": loc.addr1,
+            "category": loc.category,
+        }
+        feature = {
+            "type": "Feature",
+            "properties": props,
+            "geometry": None,
+        }
+        if lon is not None and lat is not None:
+            feature["geometry"] = {"type": "Point", "coordinates": [lon, lat]}
+        features.append(feature)
+
+    return {"type": "FeatureCollection", "features": features}
