@@ -1,3 +1,4 @@
+# File: app/routes/locations.py
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -9,15 +10,11 @@ from app import models
 
 router = APIRouter()
 
-
 def _haversine_bbox(lat: float, lon: float, km: float):
-    # approximate bbox (degrees) for given radius in km
-    # 1 deg latitude ~ 111 km
     delta_lat = km / 111.0
     lat_rad = math.radians(lat)
     delta_lon = km / (111.320 * math.cos(lat_rad)) if math.cos(lat_rad) != 0 else km / 111.320
     return (lon - delta_lon, lon + delta_lon, lat - delta_lat, lat + delta_lat)
-
 
 @router.get("/locations")
 def list_locations(
@@ -32,24 +29,18 @@ def list_locations(
     db: Session = Depends(get_db),
 ):
     query = db.query(models.Location)
-
     if content_id:
         query = query.filter(models.Location.content_id == content_id)
-
     if category:
         query = query.filter(models.Location.category == category)
-
     if q:
         query = query.filter(models.Location.title.ilike(f"%{q}%"))
-
     if lat is not None and lon is not None and radius is not None:
         min_lon, max_lon, min_lat, max_lat = _haversine_bbox(lat, lon, radius)
         query = query.filter(models.Location.mapx >= min_lon, models.Location.mapx <= max_lon,
                              models.Location.mapy >= min_lat, models.Location.mapy <= max_lat)
-
     total = query.with_entities(func.count(models.Location.id)).scalar() or 0
     items = query.order_by(models.Location.id).offset((page - 1) * size).limit(size).all()
-
     def _serialize(loc: models.Location):
         return {
             "id": loc.id,
@@ -69,15 +60,87 @@ def list_locations(
             "modified_time_raw": loc.modified_time_raw,
             "extra_raw": loc.extra_raw,
         }
-
     return {"total": total, "page": page, "size": size, "items": [_serialize(i) for i in items]}
 
+@router.get("/locations/geojson")
+def locations_geojson(
+    category: Optional[str] = Query(None),
+    q: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Return locations as a GeoJSON FeatureCollection for easy Leaflet consumption."""
+    query = db.query(models.Location)
+    if category:
+        query = query.filter(models.Location.category == category)
+    if q:
+        query = query.filter(models.Location.title.ilike(f"%{q}%"))
+    items = query.all()
+    features = []
+    for loc in items:
+        try:
+            lon = float(loc.mapx) if loc.mapx is not None else None
+            lat = float(loc.mapy) if loc.mapy is not None else None
+        except Exception:
+            lon = None
+            lat = None
+        props = {
+            "id": loc.id,
+            "content_id": loc.content_id,
+            "title": loc.title,
+            "addr1": loc.addr1,
+            "category": loc.category,
+        }
+        feature = {
+            "type": "Feature",
+            "properties": props,
+            "geometry": None,
+        }
+        if lon is not None and lat is not None:
+            feature["geometry"] = {"type": "Point", "coordinates": [lon, lat]}
+        features.append(feature)
+    return {"type": "FeatureCollection", "features": features}
 
 @router.get("/locations/{loc_id}")
-def get_location(loc_id: int, db: Session = Depends(get_db)):
+def get_location(
+    loc_id: int,
+    category: Optional[str] = Query(None),
+    q: Optional[str] = Query(None),
+    lat: Optional[float] = Query(None),
+    lon: Optional[float] = Query(None),
+    radius: Optional[float] = Query(None),
+    content_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    # fetch current location (ignore list filters for existence)
     loc = db.query(models.Location).filter(models.Location.id == loc_id).first()
     if not loc:
         raise HTTPException(status_code=404, detail="Location not found")
+
+    # build the same filters used by list_locations to compute neighbors
+    filters = []
+    if content_id:
+        filters.append(models.Location.content_id == content_id)
+    if category:
+        filters.append(models.Location.category == category)
+    if q:
+        filters.append(models.Location.title.ilike(f"%{q}%"))
+    if lat is not None and lon is not None and radius is not None:
+        min_lon, max_lon, min_lat, max_lat = _haversine_bbox(lat, lon, radius)
+        filters.extend([
+            models.Location.mapx >= min_lon,
+            models.Location.mapx <= max_lon,
+            models.Location.mapy >= min_lat,
+            models.Location.mapy <= max_lat,
+        ])
+
+    # prev: max id < current.id among filtered set
+    prev_row = db.query(models.Location.id).filter(*filters, models.Location.id < loc.id).order_by(models.Location.id.desc()).limit(1).first()
+    prev_id = prev_row[0] if prev_row else None
+
+    # next: min id > current.id among filtered set
+    next_row = db.query(models.Location.id).filter(*filters, models.Location.id > loc.id).order_by(models.Location.id.asc()).limit(1).first()
+    next_id = next_row[0] if next_row else None
+
     return {
         "id": loc.id,
         "content_id": loc.content_id,
@@ -95,4 +158,6 @@ def get_location(loc_id: int, db: Session = Depends(get_db)):
         "created_time_raw": loc.created_time_raw,
         "modified_time_raw": loc.modified_time_raw,
         "extra_raw": loc.extra_raw,
+        "prev_id": prev_id,
+        "next_id": next_id,
     }
