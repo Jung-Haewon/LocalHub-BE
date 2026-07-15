@@ -72,7 +72,7 @@ class Retriever:
             sql += " OR ".join(conditions)
             sql += ")"
 
-        sql += " LIMIT 10"
+        sql += " LIMIT 30"
 
         cur.execute(sql, params)
         rows = [dict(row) for row in cur.fetchall()]
@@ -130,7 +130,7 @@ class Retriever:
                 sql += " AND content_type_id = ?"
                 params.append(parsed["contenttype"])
 
-            sql += " LIMIT 10"
+            sql += " LIMIT 30"
 
             cur.execute(sql, params)
             rows = [dict(row) for row in cur.fetchall()]
