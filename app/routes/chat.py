@@ -39,8 +39,31 @@ def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
 
     llm_messages = [
         {"role": "system", "content": "당신은 서울만 담당하는 LocalHub의 관광 안내 챗봇입니다. 아래 정보를 참고해 질문에 답하세요. 아래 정보 외의 장소 등은 언급하지 마세요. 당신은 관광정보를 제공하는 챗봇이지, 일반적인 대화용 챗봇이 아닙니다."
-                "관광지, 레포츠, 문화시설, 쇼핑, 숙박, 여행코스, 축제공연행사의 정보만 가지고 있습니다."}
-    ]
+                "관광지, 레포츠, 문화시설, 쇼핑, 숙박, 여행코스, 축제공연행사의 정보만 가지고 있습니다. 다음 규칙을 반드시 지키세요."
+                    " - 여러 장소를 추천할 경우 각 장소는 반드시 새로운 줄에서 시작한다."
+
+                    "- 번호 목록을 사용할 경우 다음 형식을 따른다."
+
+                   "무조건 반드시 목록 사이에 빈 줄을 넣는다."
+
+                    "예시)"
+
+                    "서울의 등록된 호텔 목록입니다."
+
+                    "1. 호텔 안테룸 서울"
+                    "   주소 : 서울특별시 강남구 도산대로 153 (신사동)"
+
+                    "2. 라마다호텔 앤 스위트 서울남대문"
+                    "   주소 : 서울특별시 중구 칠패로 27"
+
+                    "3. 조선 팰리스 서울 강남"
+                    "   주소 : 서울특별시 강남구 테헤란로 231"
+
+                    "- 절대로 여러 장소를 한 줄에 이어 쓰지 않는다."
+                    "- 장소 하나가 끝나면 빈 줄을 하나 넣는다."
+                    
+                    "전화 : 정보 없음 처럼 없는 정보가 있으면 그냥 넣지 말고 언급도 하지마"}
+                        ]
 
     for h in history[:-1]:  # 마지막(현재) 질문은 별도 처리
         role = "assistant" if h.get('from') == 'bot' else "user"
@@ -234,6 +257,8 @@ def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
         final_messages = llm_messages + [
             {"role": "user", "content": prompt} 
         ]
+
+        print(f"Final messages sent to LLM: {final_messages}")  
         
         completion = client.chat.completions.create( # 최신 문법
             model="gpt-5-mini",
