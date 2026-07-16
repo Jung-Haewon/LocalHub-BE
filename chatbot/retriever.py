@@ -21,6 +21,7 @@ class Retriever:
 
         sql = """
         SELECT
+            id,
             title,
             addr1,
             tel,
@@ -72,7 +73,7 @@ class Retriever:
             sql += " OR ".join(conditions)
             sql += ")"
 
-        sql += " LIMIT 30"
+        sql += " LIMIT 10"
 
         cur.execute(sql, params)
         rows = [dict(row) for row in cur.fetchall()]
@@ -101,6 +102,7 @@ class Retriever:
 
             sql = """
             SELECT
+                id,
                 title,
                 addr1,
                 tel,
@@ -130,11 +132,15 @@ class Retriever:
                 sql += " AND content_type_id = ?"
                 params.append(parsed["contenttype"])
 
-            sql += " LIMIT 30"
+            sql += " LIMIT 10"
 
             cur.execute(sql, params)
             rows = [dict(row) for row in cur.fetchall()]
+        print(self.db_path)
 
+        cur.execute("PRAGMA table_info(locations)")
         conn.close()
+
+        
 
         return rows

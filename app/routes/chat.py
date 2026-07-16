@@ -234,7 +234,6 @@ def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
         final_messages = llm_messages + [
             {"role": "user", "content": prompt} 
         ]
-        print(f"Final messages sent to LLM: {final_messages}")
         
         completion = client.chat.completions.create( # 최신 문법
             model="gpt-5-mini",
@@ -249,7 +248,8 @@ def chat_endpoint(payload: ChatRequest, db: Session = Depends(get_db)):
     for r in rows:
         sources.append(SourceItem(
             type=r.get("source_type","location"),
-            id=r.get("source_id") or r.get("content_id"),
+            id=r.get("id"),
+            content_id=r.get("source_id") or r.get("content_type_id"),
             name=r.get("title")
         ))
 
