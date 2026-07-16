@@ -220,7 +220,6 @@ __marimo__/
 *.db
 *.sqlite3
 *.sqlite3-journal
-data/*
 !data/.gitkeep
 
 # Database
